@@ -48,25 +48,16 @@ HybridBayesNet HybridBayesNet::prune(
   // Collect all the discrete conditionals. Could be small if already pruned.
   const DiscreteBayesNet marginal = discreteMarginal();
 
-  // We use a separate value here since we need this to perform `restrict` on
-  // the HybridConditionals later.
-  DiscreteValues fixed;
   // Prune discrete Bayes net
+  DiscreteValues fixed;
   DiscreteBayesNet prunedBN =
       marginal.prune(maxNrLeaves, marginalThreshold, &fixed);
 
-  // Multiply into one big conditional.
-  // NOTE: This is cheap since marginal.prune above creates a
-  // DBN with a single joint conditional.
+  // Multiply into one big conditional. NOTE: possibly quite expensive.
   DiscreteConditional pruned = prunedBN.joint();
 
   // Set the fixed values if requested.
   if (marginalThreshold && fixedValues) {
-    if (!fixedValues->empty()) {
-      throw std::invalid_argument(
-          "HybridBayesNet::prune: fixedValues should be empty since it is "
-          "a purely output argument.");
-    }
     *fixedValues = fixed;
   }
 

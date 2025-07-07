@@ -71,11 +71,6 @@ namespace gtsam {
         result = result ? result->multiply(factor) : factor;
       }
     }
-    if (result->max() == 0.0 && result->nrValues() == 1) {
-      throw std::runtime_error(
-          "Product factor is 0.0, possibly due to disjointed discrete "
-          "factors.");
-    }
     return result;
   }
 

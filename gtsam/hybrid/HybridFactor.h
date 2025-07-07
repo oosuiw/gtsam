@@ -162,7 +162,4 @@ class GTSAM_EXPORT HybridFactor : public Factor {
 template <>
 struct traits<HybridFactor> : public Testable<HybridFactor> {};
 
-// For wrapper:
-using AlgebraicDecisionTreeKey = AlgebraicDecisionTree<Key>;
-
 }  // namespace gtsam

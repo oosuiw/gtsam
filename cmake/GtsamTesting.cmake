@@ -101,8 +101,7 @@ mark_as_advanced(GTSAM_SINGLE_TEST_EXE)
 
 # Enable make check (http://www.cmake.org/Wiki/CMakeEmulateMakeCheck)
 if(GTSAM_BUILD_TESTS)
-	separate_arguments(CTEST_EXTRA_ARGS_LIST UNIX_COMMAND "${CTEST_EXTRA_ARGS}")
-	add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIGURATION> --output-on-failure ${CTEST_EXTRA_ARGS_LIST} VERBATIM)
+	add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIGURATION> --output-on-failure)
 	# Also add alternative checks using valgrind.
 	# We don't look for valgrind being installed in the system, since these
 	# targets are not invoked unless directly instructed by the user.

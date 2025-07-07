@@ -29,9 +29,9 @@ namespace gtsam {
  */
 class GTSAM_EXPORT NonlinearInequalityConstraint : public NonlinearConstraint {
  public:
-  using Base = NonlinearConstraint;
-  using This = NonlinearInequalityConstraint;
-  using shared_ptr = std::shared_ptr<This>;
+  typedef NonlinearConstraint Base;
+  typedef NonlinearInequalityConstraint This;
+  typedef std::shared_ptr<This> shared_ptr;
 
   /** Default constructor. */
   using Base::Base;
@@ -77,9 +77,9 @@ class GTSAM_EXPORT NonlinearInequalityConstraint : public NonlinearConstraint {
  */
 class GTSAM_EXPORT ScalarExpressionInequalityConstraint : public NonlinearInequalityConstraint {
  public:
-  using Base = NonlinearInequalityConstraint;
-  using This = ScalarExpressionInequalityConstraint;
-  using shared_ptr = std::shared_ptr<This>;
+  typedef NonlinearInequalityConstraint Base;
+  typedef ScalarExpressionInequalityConstraint This;
+  typedef std::shared_ptr<This> shared_ptr;
 
  protected:
   Double_ expression_;
@@ -146,9 +146,9 @@ class GTSAM_EXPORT ScalarExpressionInequalityConstraint : public NonlinearInequa
 class GTSAM_EXPORT NonlinearInequalityConstraints
     : public FactorGraph<NonlinearInequalityConstraint> {
  public:
-  using Base = FactorGraph<NonlinearInequalityConstraint>;
-  using This = NonlinearInequalityConstraints;
-  using shared_ptr = std::shared_ptr<This>;
+  typedef FactorGraph<NonlinearInequalityConstraint> Base;
+  typedef NonlinearInequalityConstraints This;
+  typedef std::shared_ptr<This> shared_ptr;
 
   using Base::Base;
 

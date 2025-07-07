@@ -18,7 +18,8 @@
 
 #pragma once
 
-#include <gtsam/base/MatrixLieGroup.h>
+#include <gtsam/base/Lie.h>
+#include <gtsam/base/Manifold.h>
 #include <gtsam/base/make_shared.h>
 #include <gtsam/dllexport.h>
 #include <Eigen/Core>
@@ -51,7 +52,7 @@ constexpr int NSquaredSO(int N) { return (N < 0) ? Eigen::Dynamic : N * N; }
  * Template paramater N can be a fixed integer or can be Eigen::Dynamic
  */
 template <int N>
-class SO : public MatrixLieGroup<SO<N>, internal::DimensionSO(N), N> {
+class SO : public LieGroup<SO<N>, internal::DimensionSO(N)> {
  public:
   inline constexpr static auto dimension = internal::DimensionSO(N);
   using MatrixNN = Eigen::Matrix<double, N, N>;
@@ -267,9 +268,7 @@ class SO : public MatrixLieGroup<SO<N>, internal::DimensionSO(N), N> {
   /// @{
 
   /// Adjoint map
-  MatrixDD AdjointMap() const {
-    return MatrixLieGroup<SO<N>, internal::DimensionSO(N), N>::AdjointMap();
-  }
+  MatrixDD AdjointMap() const;
 
   /**
    * Exponential map at identity - create a rotation from canonical coordinates
@@ -293,6 +292,14 @@ class SO : public MatrixLieGroup<SO<N>, internal::DimensionSO(N), N> {
   /// @}
   /// @name Other methods
   /// @{
+
+  /**
+   * Return vectorized rotation matrix in column order.
+   * Will use dynamic matrices as intermediate results, but returns a fixed size
+   * X and fixed-size Jacobian if dimension is known at compile time.
+   * */
+  VectorN2 vec(OptionalJacobian<internal::NSquaredSO(N), dimension> H =
+                   {}) const;
 
   /// Calculate N^2 x dim matrix of vectorized Lie algebra generators for SO(N)
   template <int N_ = N, typename = IsFixed<N_>>
@@ -369,6 +376,13 @@ GTSAM_EXPORT
 SOn LieGroup<SOn, Eigen::Dynamic>::between(const SOn& g, DynamicJacobian H1,
                                            DynamicJacobian H2) const;
 
+/*
+ * Specialize dynamic vec.
+ */
+template <> 
+GTSAM_EXPORT
+typename SOn::VectorN2 SOn::vec(DynamicJacobian H) const;
+
 #if GTSAM_ENABLE_BOOST_SERIALIZATION
 /** Serialization function */
 template<class Archive>
@@ -386,10 +400,10 @@ void serialize(
  */
 
 template <int N>
-struct traits<SO<N>> : public internal::MatrixLieGroup<SO<N>, N> {};
+struct traits<SO<N>> : public internal::MatrixLieGroup<SO<N>> {};
 
 template <int N>
-struct traits<const SO<N>> : public internal::MatrixLieGroup<SO<N>, N> {};
+struct traits<const SO<N>> : public internal::MatrixLieGroup<SO<N>> {};
 
 }  // namespace gtsam
 

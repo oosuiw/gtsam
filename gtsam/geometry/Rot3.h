@@ -56,8 +56,6 @@ namespace gtsam {
  * @ingroup geometry
  */
 class GTSAM_EXPORT Rot3 : public LieGroup<Rot3, 3> {
- public:
-  static constexpr size_t MatrixM = 3;
  private:
 
 #ifdef GTSAM_USE_QUATERNIONS
@@ -592,11 +590,11 @@ class GTSAM_EXPORT Rot3 : public LieGroup<Rot3, 3> {
   GTSAM_EXPORT std::pair<Matrix3, Vector3> RQ(
       const Matrix3& A, OptionalJacobian<3, 9> H = {});
 
-  template <>
-struct traits<Rot3> : public internal::MatrixLieGroup<Rot3, 3> {};
+  template<>
+  struct traits<Rot3> : public internal::MatrixLieGroup<Rot3> {};
 
-template <>
-struct traits<const Rot3> : public internal::MatrixLieGroup<Rot3, 3> {};
+  template<>
+  struct traits<const Rot3> : public internal::MatrixLieGroup<Rot3> {};
   
 }  // namespace gtsam
 

@@ -322,7 +322,8 @@ HybridGaussianConditional::shared_ptr HybridGaussianConditional::prune(
                       std::back_inserter(diff));
 
   // Find maximum probability value for every combination of *our* keys.
-  auto max = discreteProbs.max(Ordering(diff));
+  Ordering ordering(diff);
+  auto max = discreteProbs.max(ordering);
 
   // Check the max value for every combination of our keys.
   // If the max value is 0.0, we can prune the corresponding conditional.

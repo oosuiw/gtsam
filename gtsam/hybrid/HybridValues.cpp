@@ -27,13 +27,10 @@ namespace gtsam {
 HybridValues::HybridValues(const VectorValues& cv, const DiscreteValues& dv)
     : continuous_(cv), discrete_(dv) {}
 
+/* ************************************************************************* */
 HybridValues::HybridValues(const VectorValues& cv, const DiscreteValues& dv,
                            const Values& v)
     : continuous_(cv), discrete_(dv), nonlinear_(v) {}
-
-/* ************************************************************************* */
-HybridValues::HybridValues(const DiscreteValues& dv, const Values& v)
-    : discrete_(dv), nonlinear_(v) {}
 
 /* ************************************************************************* */
 void HybridValues::print(const std::string& s,
@@ -47,6 +44,7 @@ void HybridValues::print(const std::string& s,
   nonlinear_.print("  Nonlinear", keyFormatter);
 }
 
+/* ************************************************************************* */
 bool HybridValues::equals(const HybridValues& other, double tol) const {
   return continuous_.equals(other.continuous_, tol) &&
          discrete_.equals(other.discrete_, tol);
@@ -55,19 +53,24 @@ bool HybridValues::equals(const HybridValues& other, double tol) const {
 /* ************************************************************************* */
 const VectorValues& HybridValues::continuous() const { return continuous_; }
 
+/* ************************************************************************* */
 const DiscreteValues& HybridValues::discrete() const { return discrete_; }
 
+/* ************************************************************************* */
 const Values& HybridValues::nonlinear() const { return nonlinear_; }
 
 /* ************************************************************************* */
 bool HybridValues::existsVector(Key j) { return continuous_.exists(j); }
 
+/* ************************************************************************* */
 bool HybridValues::existsDiscrete(Key j) {
   return (discrete_.find(j) != discrete_.end());
 }
 
+/* ************************************************************************* */
 bool HybridValues::existsNonlinear(Key j) { return nonlinear_.exists(j); }
 
+/* ************************************************************************* */
 bool HybridValues::exists(Key j) {
   return existsVector(j) || existsDiscrete(j) || existsNonlinear(j);
 }
@@ -79,31 +82,42 @@ HybridValues HybridValues::retract(const VectorValues& delta) const {
 }
 
 /* ************************************************************************* */
-HybridValues& HybridValues::insert(Key j, const Vector& value) {
+void HybridValues::insert(Key j, const Vector& value) {
   continuous_.insert(j, value);
-  return *this;
 }
 
-HybridValues& HybridValues::insert(Key j, size_t value) { 
+/* ************************************************************************* */
+void HybridValues::insert(Key j, size_t value) { discrete_[j] = value; }
+
+/* ************************************************************************* */
+void HybridValues::insert_or_assign(Key j, const Vector& value) {
+  continuous_.insert_or_assign(j, value);
+}
+
+/* ************************************************************************* */
+void HybridValues::insert_or_assign(Key j, size_t value) {
   discrete_[j] = value;
-  return *this;
 }
 
+/* ************************************************************************* */
 HybridValues& HybridValues::insert(const VectorValues& values) {
   continuous_.insert(values);
   return *this;
 }
 
+/* ************************************************************************* */
 HybridValues& HybridValues::insert(const DiscreteValues& values) {
   discrete_.insert(values);
   return *this;
 }
 
+/* ************************************************************************* */
 HybridValues& HybridValues::insert(const Values& values) {
   nonlinear_.insert(values);
   return *this;
 }
 
+/* ************************************************************************* */
 HybridValues& HybridValues::insert(const HybridValues& values) {
   continuous_.insert(values.continuous());
   discrete_.insert(values.discrete());
@@ -112,17 +126,9 @@ HybridValues& HybridValues::insert(const HybridValues& values) {
 }
 
 /* ************************************************************************* */
-void HybridValues::insert_or_assign(Key j, const Vector& value) {
-  continuous_.insert_or_assign(j, value);
-}
-
-void HybridValues::insert_or_assign(Key j, size_t value) {
-  discrete_[j] = value;
-}
-
-/* ************************************************************************* */
 Vector& HybridValues::at(Key j) { return continuous_.at(j); }
 
+/* ************************************************************************* */
 size_t& HybridValues::atDiscrete(Key j) { return discrete_.at(j); }
 
 /* ************************************************************************* */
@@ -131,16 +137,13 @@ HybridValues& HybridValues::update(const VectorValues& values) {
   return *this;
 }
 
+/* ************************************************************************* */
 HybridValues& HybridValues::update(const DiscreteValues& values) {
   discrete_.update(values);
   return *this;
 }
 
-HybridValues& HybridValues::update(const Values& values) {
-  nonlinear_.update(values);
-  return *this;
-}
-
+/* ************************************************************************* */
 HybridValues& HybridValues::update(const HybridValues& values) {
   continuous_.update(values.continuous());
   discrete_.update(values.discrete());

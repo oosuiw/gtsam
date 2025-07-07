@@ -46,9 +46,22 @@ static std::shared_ptr<PreintegrationParams> Params() {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, PreintegratedMeasurementsConstruction) {
+namespace {
+// Auxiliary functions to test evaluate error in ImuFactor
+/* ************************************************************************* */
+Rot3 evaluateRotationError(const ImuFactor& factor, const Pose3& pose_i,
+    const Vector3& vel_i, const Pose3& pose_j, const Vector3& vel_j,
+    const Bias& bias) {
+  return Rot3::Expmap(
+      factor.evaluateError(pose_i, vel_i, pose_j, vel_j, bias).head(3));
+}
+
+} // namespace
+
+/* ************************************************************************* */
+TEST(ImuFactor, PreintegratedMeasurementsConstruction) {
   // Actual pre-integrated values
-  PIM actual(testing::Params());
+  PreintegratedImuMeasurements actual(testing::Params());
   EXPECT(assert_equal(Rot3(), actual.deltaRij()));
   EXPECT(assert_equal(kZero, actual.deltaPij()));
   EXPECT(assert_equal(kZero, actual.deltaVij()));
@@ -56,11 +69,11 @@ TEST_PIM(ImuFactor, PreintegratedMeasurementsConstruction) {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, PreintegratedMeasurementsReset) {
+TEST(ImuFactor, PreintegratedMeasurementsReset) {
 
 	auto p = testing::Params();
 	// Create a preintegrated measurement struct and integrate
-	PIM pimActual(p);
+	PreintegratedImuMeasurements pimActual(p);
 	Vector3 measuredAcc(0.5, 1.0, 0.5);
 	Vector3 measuredOmega(0.1, 0.3, 0.1);
 	double deltaT = 1.0;
@@ -68,11 +81,11 @@ TEST_PIM(ImuFactor, PreintegratedMeasurementsReset) {
 
 	// reset and make sure that it is the same as a fresh one
 	pimActual.resetIntegration();
-	CHECK(assert_equal(pimActual, PIM(p)));
+	CHECK(assert_equal(pimActual, PreintegratedImuMeasurements(p)));
 
 	// Now create one with a different bias ..
 	Bias nonZeroBias(Vector3(0.2, 0, 0), Vector3(0.1, 0, 0.3));
-	PIM pimExpected(p, nonZeroBias);
+	PreintegratedImuMeasurements pimExpected(p, nonZeroBias);
 
 	// integrate again, then reset to a new bias
 	pimActual.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
@@ -104,7 +117,7 @@ TEST(ImuFactor, Accelerating) {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, PreintegratedMeasurements) {
+TEST(ImuFactor, PreintegratedMeasurements) {
   // Measurements
   const double a = 0.1, w = M_PI / 100.0;
   Vector3 measuredAcc(a, 0.0, 0.0);
@@ -117,7 +130,7 @@ TEST_PIM(ImuFactor, PreintegratedMeasurements) {
   Vector3 expectedDeltaV1(0.05, 0.0, 0.0);
 
   // Actual pre-integrated values
-  PIM actual(testing::Params());
+  PreintegratedImuMeasurements actual(testing::Params());
   actual.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
   EXPECT(assert_equal(Rot3::Expmap(expectedDeltaR1), actual.deltaRij()));
   EXPECT(assert_equal(expectedDeltaP1, actual.deltaPij()));
@@ -176,13 +189,13 @@ static const NavState state2(x2, v2);
 } // namespace common
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, PreintegrationBaseMethods) {
+TEST(ImuFactor, PreintegrationBaseMethods) {
   using namespace common;
   auto p = testing::Params();
   p->omegaCoriolis = Vector3(0.02, 0.03, 0.04);
   p->use2ndOrderCoriolis = true;
 
-  PIM pim(p, kZeroBiasHat);
+  PreintegratedImuMeasurements pim(p, kZeroBiasHat);
   pim.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
   pim.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
 
@@ -208,10 +221,10 @@ TEST_PIM(ImuFactor, PreintegrationBaseMethods) {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, MultipleMeasurements) {
+TEST(ImuFactor, MultipleMeasurements) {
   using namespace common;
 
-  PIM expected(testing::Params(), kZeroBiasHat);
+  PreintegratedImuMeasurements expected(testing::Params(), kZeroBiasHat);
   expected.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
   expected.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
 
@@ -220,22 +233,22 @@ TEST_PIM(ImuFactor, MultipleMeasurements) {
   acc << measuredAcc, measuredAcc;
   gyro << measuredOmega, measuredOmega;
   dts << deltaT, deltaT;
-  PIM actual(testing::Params(), kZeroBiasHat);
+  PreintegratedImuMeasurements actual(testing::Params(), kZeroBiasHat);
   actual.integrateMeasurements(acc,gyro,dts);
 
   EXPECT(assert_equal(expected,actual));
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, ErrorAndJacobians) {
+TEST(ImuFactor, ErrorAndJacobians) {
   using namespace common;
-  PIM pim(testing::Params());
+  PreintegratedImuMeasurements pim(testing::Params());
 
   pim.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
   EXPECT(assert_equal(state2, pim.predict(state1, kZeroBias)));
 
   // Create factor
-  ImuFactorT<PIM> factor(X(1), V(1), X(2), V(2), B(1), pim);
+  ImuFactor factor(X(1), V(1), X(2), V(2), B(1), pim);
 
   // Expected error
   Vector expectedError(9);
@@ -264,17 +277,13 @@ TEST_PIM(ImuFactor, ErrorAndJacobians) {
   // Make sure rotation part is correct when error is interpreted as axis-angle
   // Jacobians are around zero, so the rotation part is the same as:
   Matrix H1Rot3 = numericalDerivative11<Rot3, Pose3>(
-    [&](const Pose3& pose_i) {
-      return Rot3::Expmap(factor.evaluateError(pose_i, v1, x2, v2, kZeroBias).head(3));
-    },
-    x1);
+      std::bind(&evaluateRotationError, factor, std::placeholders::_1, v1, x2, v2, kZeroBias),
+      x1);
   EXPECT(assert_equal(H1Rot3, H1a.topRows(3)));
 
   Matrix H3Rot3 = numericalDerivative11<Rot3, Pose3>(
-    [&](const Pose3& pose_j) {
-      return Rot3::Expmap(factor.evaluateError(x1, v1, pose_j, v2, kZeroBias).head(3));
-    },
-    x2);
+      std::bind(&evaluateRotationError, factor, x1, v1, std::placeholders::_1, v2, kZeroBias),
+      x2);
   EXPECT(assert_equal(H3Rot3, H3a.topRows(3)));
 
   // Evaluate error with wrong values
@@ -297,7 +306,7 @@ TEST_PIM(ImuFactor, ErrorAndJacobians) {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, ErrorAndJacobianWithBiases) {
+TEST(ImuFactor, ErrorAndJacobianWithBiases) {
   using common::x1;
   using common::v1;
   using common::v2;
@@ -316,7 +325,7 @@ TEST_PIM(ImuFactor, ErrorAndJacobianWithBiases) {
   p->omegaCoriolis = kNonZeroOmegaCoriolis;
 
   Bias biasHat(Vector3(0.2, 0.0, 0.0), Vector3(0.0, 0.0, 0.1));
-  PIM pim(p, biasHat);
+  PreintegratedImuMeasurements pim(p, biasHat);
   pim.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
 
   // Make sure of biasCorrectedDelta
@@ -328,7 +337,7 @@ TEST_PIM(ImuFactor, ErrorAndJacobianWithBiases) {
   EXPECT(assert_equal(expectedH, actualH));
 
   // Create factor
-  ImuFactorT<PIM> factor(X(1), V(1), X(2), V(2), B(1), pim);
+  ImuFactor factor(X(1), V(1), X(2), V(2), B(1), pim);
 
   Values values;
   values.insert(X(1), x1);
@@ -343,7 +352,7 @@ TEST_PIM(ImuFactor, ErrorAndJacobianWithBiases) {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, ErrorAndJacobianWith2ndOrderCoriolis) {
+TEST(ImuFactor, ErrorAndJacobianWith2ndOrderCoriolis) {
   using common::x1;
   using common::v1;
   using common::v2;
@@ -362,11 +371,12 @@ TEST_PIM(ImuFactor, ErrorAndJacobianWith2ndOrderCoriolis) {
   p->omegaCoriolis = kNonZeroOmegaCoriolis;
   p->use2ndOrderCoriolis = true;
 
-  PIM pim(p, Bias(Vector3(0.2, 0.0, 0.0), Vector3(0.0, 0.0, 0.1)));
+  PreintegratedImuMeasurements pim(p,
+      Bias(Vector3(0.2, 0.0, 0.0), Vector3(0.0, 0.0, 0.1)));
   pim.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
 
   // Create factor
-  ImuFactorT<PIM> factor(X(1), V(1), X(2), V(2), B(1), pim);
+  ImuFactor factor(X(1), V(1), X(2), V(2), B(1), pim);
 
   Values values;
   values.insert(X(1), x1);
@@ -461,7 +471,14 @@ TEST(ImuFactor, fistOrderExponential) {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, ErrorWithBiasesAndSensorBodyDisplacement) {
+Vector3 correctedAcc(const PreintegratedImuMeasurements& pim,
+    const Vector3& measuredAcc, const Vector3& measuredOmega) {
+  Vector3 correctedAcc = pim.biasHat().correctAccelerometer(measuredAcc);
+  Vector3 correctedOmega = pim.biasHat().correctGyroscope(measuredOmega);
+  return pim.correctMeasurementsBySensorPose(correctedAcc, correctedOmega).first;
+}
+
+TEST(ImuFactor, ErrorWithBiasesAndSensorBodyDisplacement) {
   const Rot3 nRb = Rot3::Expmap(Vector3(0, 0, M_PI / 4.0));
   const Point3 p1(5.0, 1.0, -50.0);
   const Vector3 v1(0.5, 0.0, 0.0);
@@ -480,7 +497,7 @@ TEST_PIM(ImuFactor, ErrorWithBiasesAndSensorBodyDisplacement) {
   const double T = 3.0; // seconds
   ScenarioRunner runner(scenario, p, T / 10);
 
-  //  PIM pim = runner.integrate(T);
+  //  PreintegratedImuMeasurements pim = runner.integrate(T);
   //  EXPECT(assert_equal(scenario.pose(T), runner.predict(pim).pose, 1e-9));
   //
   //  Matrix6 estimatedCov = runner.estimatePoseCovariance(T);
@@ -496,33 +513,51 @@ TEST_PIM(ImuFactor, ErrorWithBiasesAndSensorBodyDisplacement) {
   // Get mean prediction from "ground truth" measurements
   const Vector3 accNoiseVar2(0.01, 0.02, 0.03);
   const Vector3 omegaNoiseVar2(0.03, 0.01, 0.02);
-  PIM pim(p, biasHat);
+  PreintegratedImuMeasurements pim(p, biasHat);
 
-  // Check correctMeasurementsBySensorPose derivatives
+  // Check updatedDeltaXij derivatives
   Matrix3 D_correctedAcc_measuredOmega = Z_3x3;
   pim.correctMeasurementsBySensorPose(measuredAcc, measuredOmega,
       nullptr, D_correctedAcc_measuredOmega, nullptr);
-  auto correctedAcc = [&](const Vector3& measuredOmega) -> Vector3 {
-    Vector3 correctedAcc = pim.biasHat().correctAccelerometer(measuredAcc);
-    Vector3 correctedOmega = pim.biasHat().correctGyroscope(measuredOmega);
-    return pim.correctMeasurementsBySensorPose(correctedAcc, correctedOmega).first;
-  };
-  Matrix3 expectedD = numericalDerivative11<Vector3, Vector3>(correctedAcc, measuredOmega, 1e-6);
+  Matrix3 expectedD = numericalDerivative11<Vector3, Vector3>(
+      std::bind(correctedAcc, pim, measuredAcc, std::placeholders::_1),
+      measuredOmega, 1e-6);
   EXPECT(assert_equal(expectedD, D_correctedAcc_measuredOmega, 1e-5));
+
+  double dt = 0.1;
+
+// TODO(frank): revive derivative tests
+//  Matrix93 G1, G2;
+//  Vector9 preint =
+//      pim.updatedDeltaXij(measuredAcc, measuredOmega, dt, {}, G1, G2);
+//
+//  Matrix93 expectedG1 = numericalDerivative21<NavState, Vector3, Vector3>(
+//      std::bind(&PreintegratedImuMeasurements::updatedDeltaXij, pim,
+//          std::placeholders::_1, std::placeholders::_2,
+//          dt, {}, {}, {}), measuredAcc,
+//      measuredOmega, 1e-6);
+//  EXPECT(assert_equal(expectedG1, G1, 1e-5));
+//
+//  Matrix93 expectedG2 = numericalDerivative22<NavState, Vector3, Vector3>(
+//      std::bind(&PreintegratedImuMeasurements::updatedDeltaXij, pim,
+//          std::placeholders::_1, std::placeholders::_2,
+//          dt, {}, {}, {}), measuredAcc,
+//      measuredOmega, 1e-6);
+//  EXPECT(assert_equal(expectedG2, G2, 1e-5));
+
+  Bias bias(Vector3(0.2, 0, 0), Vector3(0, 0, 0.3)); // Biases (acc, rot)
 
   // integrate at least twice to get position information
   // otherwise factor cov noise from preint_cov is not positive definite
-  double dt = 0.1;
   pim.integrateMeasurement(measuredAcc, measuredOmega, dt);
   pim.integrateMeasurement(measuredAcc, measuredOmega, dt);
-  
+
   // Create factor
-  ImuFactorT<PIM> factor(X(1), V(1), X(2), V(2), B(1), pim);
-  
+  ImuFactor factor(X(1), V(1), X(2), V(2), B(1), pim);
+
   Pose3 x2(Rot3::Expmap(Vector3(0, 0, M_PI / 4.0 + M_PI / 10.0)),
-  Point3(5.5, 1.0, -50.0));
+      Point3(5.5, 1.0, -50.0));
   Vector3 v2(Vector3(0.5, 0.0, 0.0));
-  Bias bias(Vector3(0.2, 0, 0), Vector3(0, 0, 0.3)); // Biases (acc, rot)
 
   Values values;
   values.insert(X(1), x1);
@@ -537,7 +572,7 @@ TEST_PIM(ImuFactor, ErrorWithBiasesAndSensorBodyDisplacement) {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, PredictPositionAndVelocity) {
+TEST(ImuFactor, PredictPositionAndVelocity) {
   gttic(PredictPositionAndVelocity);
   Bias bias(Vector3(0, 0, 0), Vector3(0, 0, 0)); // Biases (acc, rot)
 
@@ -548,13 +583,14 @@ TEST_PIM(ImuFactor, PredictPositionAndVelocity) {
   measuredAcc << 0, 1, -kGravity;
   double deltaT = 0.001;
 
-  PIM pim(testing::Params(), Bias(Vector3(0.2, 0.0, 0.0), Vector3(0.0, 0.0, 0.0)));
+  PreintegratedImuMeasurements pim(testing::Params(),
+      Bias(Vector3(0.2, 0.0, 0.0), Vector3(0.0, 0.0, 0.0)));
 
   for (int i = 0; i < 1000; ++i)
     pim.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
 
   // Create factor
-  ImuFactorT<PIM> factor(X(1), V(1), X(2), V(2), B(1), pim);
+  ImuFactor factor(X(1), V(1), X(2), V(2), B(1), pim);
 
   // Predict
   Pose3 x1;
@@ -565,7 +601,7 @@ TEST_PIM(ImuFactor, PredictPositionAndVelocity) {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, PredictRotation) {
+TEST(ImuFactor, PredictRotation) {
   gttic(PredictRotation);
   Bias bias(Vector3(0, 0, 0), Vector3(0, 0, 0)); // Biases (acc, rot)
 
@@ -576,14 +612,14 @@ TEST_PIM(ImuFactor, PredictRotation) {
   measuredAcc << 0, 0, -kGravity;
   double deltaT = 0.001;
 
-  PIM pim(testing::Params(),
+  PreintegratedImuMeasurements pim(testing::Params(),
       Bias(Vector3(0.2, 0.0, 0.0), Vector3(0.0, 0.0, 0.0)));
 
   for (int i = 0; i < 1000; ++i)
     pim.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
 
   // Create factor
-  ImuFactorT<PIM> factor(X(1), V(1), X(2), V(2), B(1), pim);
+  ImuFactor factor(X(1), V(1), X(2), V(2), B(1), pim);
 
   // Predict
   NavState actual = pim.predict(NavState(), bias);
@@ -592,7 +628,7 @@ TEST_PIM(ImuFactor, PredictRotation) {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, PredictArbitrary) {
+TEST(ImuFactor, PredictArbitrary) {
   gttic(PredictArbitrary);
   Pose3 x1;
   const Vector3 v1(0, 0, 0);
@@ -603,7 +639,7 @@ TEST_PIM(ImuFactor, PredictArbitrary) {
   const double T = 3.0; // seconds
   ScenarioRunner runner(scenario, testing::Params(), T / 10);
   //
-  //  PIM pim = runner.integrate(T);
+  //  PreintegratedImuMeasurements pim = runner.integrate(T);
   //  EXPECT(assert_equal(scenario.pose(T), runner.predict(pim).pose, 1e-9));
   //
   //  Matrix6 estimatedCov = runner.estimatePoseCovariance(T);
@@ -618,7 +654,7 @@ TEST_PIM(ImuFactor, PredictArbitrary) {
 
   auto p = testing::Params();
   p->integrationCovariance = Z_3x3; // MonteCarlo does not sample integration noise
-  PIM pim(p, biasHat);
+  PreintegratedImuMeasurements pim(p, biasHat);
   Bias bias(Vector3(0, 0, 0), Vector3(0, 0, 0));
 //  EXPECT(MonteCarlo(pim, NavState(x1, v1), bias, 0.1, {}, measuredAcc, measuredOmega,
 //                    Vector3::Constant(accNoiseVar), Vector3::Constant(omegaNoiseVar), 100000));
@@ -628,7 +664,7 @@ TEST_PIM(ImuFactor, PredictArbitrary) {
     pim.integrateMeasurement(measuredAcc, measuredOmega, dt);
 
   // Create factor
-  ImuFactorT<PIM> factor(X(1), V(1), X(2), V(2), B(1), pim);
+  ImuFactor factor(X(1), V(1), X(2), V(2), B(1), pim);
 
   // Predict
   NavState actual = pim.predict(NavState(x1, v1), bias);
@@ -645,7 +681,7 @@ TEST_PIM(ImuFactor, PredictArbitrary) {
 }
 
 /* ************************************************************************* */
-TEST_PIM(ImuFactor, bodyPSensorNoBias) {
+TEST(ImuFactor, bodyPSensorNoBias) {
   gttic(bodyPSensorNoBias);
   Bias bias(Vector3(0, 0, 0), Vector3(0, 0.1, 0)); // Biases (acc, rot)
 
@@ -662,13 +698,13 @@ TEST_PIM(ImuFactor, bodyPSensorNoBias) {
   Vector3 s_accMeas(0, 0, -kGravity);
   double dt = 0.001;
 
-  PIM pim(p, bias);
+  PreintegratedImuMeasurements pim(p, bias);
 
   for (int i = 0; i < 1000; ++i)
     pim.integrateMeasurement(s_accMeas, s_omegaMeas_ns, dt);
 
   // Create factor
-  ImuFactorT<PIM> factor(X(1), V(1), X(2), V(2), B(1), pim);
+  ImuFactor factor(X(1), V(1), X(2), V(2), B(1), pim);
 
   // Predict
   NavState actual = pim.predict(NavState(), bias);
@@ -686,7 +722,7 @@ TEST_PIM(ImuFactor, bodyPSensorNoBias) {
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/Marginals.h>
 
-TEST_PIM(ImuFactor, bodyPSensorWithBias) {
+TEST(ImuFactor, bodyPSensorWithBias) {
   gttic(bodyPSensorWithBias);
   using noiseModel::Diagonal;
   typedef Bias Bias;
@@ -744,13 +780,12 @@ TEST_PIM(ImuFactor, bodyPSensorWithBias) {
   // Now add IMU factors and bias noise models
   Bias zeroBias(Vector3(0, 0, 0), Vector3(0, 0, 0));
   for (int i = 1; i < numPoses; i++) {
-    PIM pim(p, priorBias);
+    PreintegratedImuMeasurements pim(p, priorBias);
     for (int j = 0; j < 200; ++j)
       pim.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
 
     // Create factors
-    using FACTOR = ImuFactorT<PIM>;
-    graph.emplace_shared<FACTOR>(X(i - 1), V(i - 1), X(i), V(i), B(i - 1), pim);
+    graph.emplace_shared<ImuFactor>(X(i - 1), V(i - 1), X(i), V(i), B(i - 1), pim);
     graph.emplace_shared<BetweenFactor<Bias> >(B(i - 1), B(i), zeroBias, biasNoiseModel);
 
     values.insert(X(i), Pose3());
@@ -866,14 +901,14 @@ TEST(ImuFactor, MergeWithCoriolis) {
 
 /* ************************************************************************* */
 // Same values as pre-integration test but now testing covariance
-TEST_PIM(ImuFactor, CheckCovariance) {
+TEST(ImuFactor, CheckCovariance) {
   gttic(CheckCovariance);
   // Measurements
   Vector3 measuredAcc(0.1, 0.0, 0.0);
   Vector3 measuredOmega(M_PI / 100.0, 0.0, 0.0);
   double deltaT = 0.5;
 
-  PIM actual(testing::Params());
+  PreintegratedImuMeasurements actual(testing::Params());
   actual.integrateMeasurement(measuredAcc, measuredOmega, deltaT);
   Matrix9 expected;
   expected << 1.0577e-08, 0, 0, 0, 0, 0, 0, 0, 0,     //

@@ -34,7 +34,7 @@ class Pose2;
  * @ingroup geometry
  * \nosubgrouping
  */
-class GTSAM_EXPORT Pose3: public MatrixLieGroup<Pose3, 6, 4> {
+class GTSAM_EXPORT Pose3: public LieGroup<Pose3, 6> {
 public:
 
   /** Pose Concept requirements */
@@ -383,7 +383,8 @@ public:
   Pose3 slerp(double t, const Pose3& other, OptionalJacobian<6, 6> Hx = {},
                                              OptionalJacobian<6, 6> Hy = {}) const;
 
-  
+  /// Return vectorized SE(3) matrix in column order.
+  Vector vec(OptionalJacobian<16, 6> H = {}) const;
 
   /// Output stream operator
   GTSAM_EXPORT
@@ -439,10 +440,10 @@ using Pose3Pairs = std::vector<std::pair<Pose3, Pose3> >;
 typedef std::vector<Pose3> Pose3Vector;
 
 template <>
-struct traits<Pose3> : public internal::MatrixLieGroup<Pose3, 4> {};
+struct traits<Pose3> : public internal::MatrixLieGroup<Pose3> {};
 
 template <>
-struct traits<const Pose3> : public internal::MatrixLieGroup<Pose3, 4> {};
+struct traits<const Pose3> : public internal::MatrixLieGroup<Pose3> {};
 
 // bearing and range traits, used in RangeFactor
 template <>

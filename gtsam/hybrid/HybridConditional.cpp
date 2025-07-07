@@ -112,13 +112,13 @@ bool HybridConditional::equals(const HybridFactor &other, double tol) const {
 }
 
 /* ************************************************************************ */
-double HybridConditional::error(const HybridValues &hybridValues) const {
+double HybridConditional::error(const HybridValues &values) const {
   if (auto gc = asGaussian()) {
-    return gc->error(hybridValues.continuous());
+    return gc->error(values.continuous());
   } else if (auto gm = asHybrid()) {
-    return gm->error(hybridValues);
+    return gm->error(values);
   } else if (auto dc = asDiscrete()) {
-    return dc->error(hybridValues.discrete());
+    return dc->error(values.discrete());
   } else
     throw std::runtime_error(
         "HybridConditional::error: conditional type not handled");
@@ -126,11 +126,11 @@ double HybridConditional::error(const HybridValues &hybridValues) const {
 
 /* ************************************************************************ */
 AlgebraicDecisionTree<Key> HybridConditional::errorTree(
-    const VectorValues &continuousValues) const {
+    const VectorValues &values) const {
   if (auto gc = asGaussian()) {
-    return {gc->error(continuousValues)};  // NOTE: a "constant" tree
+    return {gc->error(values)};  // NOTE: a "constant" tree
   } else if (auto gm = asHybrid()) {
-    return gm->errorTree(continuousValues);
+    return gm->errorTree(values);
   } else if (auto dc = asDiscrete()) {
     return dc->errorTree();
   } else

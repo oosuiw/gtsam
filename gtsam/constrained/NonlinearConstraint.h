@@ -35,7 +35,7 @@ namespace gtsam {
  */
 class GTSAM_EXPORT NonlinearConstraint : public NoiseModelFactor {
  public:
-  using Base = NoiseModelFactor;
+  typedef NoiseModelFactor Base;
 
   /** Use constructors of NoiseModelFactor. */
   using Base::Base;
